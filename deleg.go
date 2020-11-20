@@ -2,11 +2,9 @@ package logger
 
 import (
 	"sync"
-
-	"github.com/go-logr/logr"
 )
 
-// loggerPromise knows how to populate a concrete logr.Logger
+// loggerPromise knows how to populate a concrete Logger
 // with options, given an actual base logger later on down the line.
 type loggerPromise struct {
 	logger        *DelegatingLogger
@@ -46,7 +44,7 @@ func (p *loggerPromise) WithValues(l *DelegatingLogger, tags ...interface{}) *lo
 }
 
 // Fulfill instantiates the Logger with the provided logger
-func (p *loggerPromise) Fulfill(parentLogger logr.Logger) {
+func (p *loggerPromise) Fulfill(parentLogger Logger) {
 	var logger = parentLogger
 	if p.name != nil {
 		logger = logger.WithName(*p.name)
@@ -64,18 +62,18 @@ func (p *loggerPromise) Fulfill(parentLogger logr.Logger) {
 	}
 }
 
-// DelegatingLogger is a logr.Logger that delegates to another logr.Logger.
+// DelegatingLogger is a Logger that delegates to another Logger.
 // If the underlying promise is not nil, it registers calls to sub-loggers with
 // the logging factory to be populated later, and returns a new delegating
-// logger.  It expects to have *some* logr.Logger set at all times (generally
+// logger.  It expects to have *some* Logger set at all times (generally
 // a no-op logger before the promises are fulfilled).
 type DelegatingLogger struct {
-	logr.Logger
+	Logger
 	promise *loggerPromise
 }
 
 // WithName provides a new Logger with the name appended
-func (l *DelegatingLogger) WithName(name string) logr.Logger {
+func (l *DelegatingLogger) WithName(name string) Logger {
 	if l.promise == nil {
 		return l.Logger.WithName(name)
 	}
@@ -88,7 +86,7 @@ func (l *DelegatingLogger) WithName(name string) logr.Logger {
 }
 
 // WithValues provides a new Logger with the tags appended
-func (l *DelegatingLogger) WithValues(tags ...interface{}) logr.Logger {
+func (l *DelegatingLogger) WithValues(tags ...interface{}) Logger {
 	if l.promise == nil {
 		return l.Logger.WithValues(tags...)
 	}
@@ -103,7 +101,7 @@ func (l *DelegatingLogger) WithValues(tags ...interface{}) logr.Logger {
 // Fulfill switches the logger over to use the actual logger
 // provided, instead of the temporary initial one, if this method
 // has not been previously called.
-func (l *DelegatingLogger) Fulfill(actual logr.Logger) {
+func (l *DelegatingLogger) Fulfill(actual Logger) {
 	if l.promise != nil {
 		l.promise.Fulfill(actual)
 	}
@@ -111,7 +109,7 @@ func (l *DelegatingLogger) Fulfill(actual logr.Logger) {
 
 // NewDelegatingLogger constructs a new DelegatingLogger which uses
 // the given logger before it's promise is fulfilled.
-func NewDelegatingLogger(initial logr.Logger) *DelegatingLogger {
+func NewDelegatingLogger(initial Logger) *DelegatingLogger {
 	l := &DelegatingLogger{
 		Logger:  initial,
 		promise: &loggerPromise{promisesLock: sync.Mutex{}},

@@ -6,6 +6,8 @@ import (
 	"github.com/go-logr/logr"
 )
 
+type Logger = logr.Logger
+
 var log = NewDelegatingLogger(DiscardLogger)
 
 // DiscardLogger is a logr.Logger that does nothing.
@@ -14,15 +16,15 @@ var DiscardLogger = logr.Discard()
 // Log is the base logger used by kubebuilder.  It delegates
 // to another logr.Logger.  You *must* call SetLogger to
 // get any actual logging.
-var Log logr.Logger = log
+var Log Logger = log
 
 // SetLogger sets a concrete logging implementation for all deferred Loggers.
-func SetLogger(l logr.Logger) {
+func SetLogger(l Logger) {
 	log.Fulfill(l)
 }
 
 // FromContext returns a logger with predefined values from a context.Context.
-func FromContext(ctx context.Context) logr.Logger {
+func FromContext(ctx context.Context) Logger {
 	if ctx == nil {
 		return Log
 	}
@@ -35,6 +37,6 @@ func FromContext(ctx context.Context) logr.Logger {
 
 // WithContext takes a context and sets the logger as one of its keys.
 // Use FromContext function to retrieve the logger.
-func WithContext(ctx context.Context, log logr.Logger) context.Context {
+func WithContext(ctx context.Context, log Logger) context.Context {
 	return logr.NewContext(ctx, log)
 }
