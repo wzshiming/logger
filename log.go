@@ -6,17 +6,19 @@ import (
 	"github.com/go-logr/logr"
 )
 
+var log = NewDelegatingLogger(DiscardLogger)
+
 // DiscardLogger is a logr.Logger that does nothing.
 var DiscardLogger = logr.Discard()
 
 // Log is the base logger used by kubebuilder.  It delegates
 // to another logr.Logger.  You *must* call SetLogger to
 // get any actual logging.
-var Log = NewDelegatingLogger(DiscardLogger)
+var Log logr.Logger = log
 
 // SetLogger sets a concrete logging implementation for all deferred Loggers.
 func SetLogger(l logr.Logger) {
-	Log.Fulfill(l)
+	log.Fulfill(l)
 }
 
 // FromContext returns a logger with predefined values from a context.Context.
