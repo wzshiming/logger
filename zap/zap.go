@@ -1,10 +1,11 @@
 package zap
 
 import (
-	"flag"
 	"io"
 	"os"
+	"reflect"
 	"time"
+	"unsafe"
 
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
@@ -23,6 +24,15 @@ type NewEncoderFunc func(...EncoderConfigOption) zapcore.Encoder
 // Namespace/Name to the log.
 func New(opts ...Opts) logr.Logger {
 	return zapr.NewLogger(NewRaw(opts...))
+}
+
+// WithOut returns change the io.Writer of logr.Logger
+func WithOut(log logr.Logger, w io.Writer) logr.Logger {
+	un, ok := log.(zapr.Underlier)
+	if !ok {
+		return log
+	}
+	return zapr.NewLogger(withOut(un.GetUnderlying(), w))
 }
 
 // Opts allows to manipulate Options
@@ -206,52 +216,21 @@ func NewRaw(opts ...Opts) *zap.Logger {
 	return log
 }
 
-// BindFlags will parse the given flagset for zap option flags and set the log options accordingly
-//  zap-devel: Development Mode defaults(encoder=consoleEncoder,logLevel=Debug,stackTraceLevel=Warn)
-//			  Production Mode defaults(encoder=jsonEncoder,logLevel=Info,stackTraceLevel=Error)
-//  zap-encoder: Zap log encoding (one of 'json' or 'console')
-//  zap-log-level:  Zap Level to configure the verbosity of logging. Can be one of 'debug', 'info', 'error',
-//			       or any integer value > 0 which corresponds to custom debug levels of increasing verbosity")
-//  zap-stacktrace-level: Zap Level at and above which stacktraces are captured (one of 'info' or 'error')
-func (o *Options) BindFlags(fs *flag.FlagSet) {
-
-	// Set Development mode value
-	fs.BoolVar(&o.Development, "zap-devel", o.Development,
-		"Development Mode defaults(encoder=consoleEncoder,logLevel=Debug,stackTraceLevel=Warn). "+
-			"Production Mode defaults(encoder=jsonEncoder,logLevel=Info,stackTraceLevel=Error)")
-
-	// Set Encoder value
-	var encVal encoderFlag
-	encVal.setFunc = func(fromFlag NewEncoderFunc) {
-		o.NewEncoder = fromFlag
-	}
-	fs.Var(&encVal, "zap-encoder", "Zap log encoding (one of 'json' or 'console')")
-
-	// Set the Log Level
-	var levelVal levelFlag
-	levelVal.setFunc = func(fromFlag zapcore.LevelEnabler) {
-		o.Level = fromFlag
-	}
-	fs.Var(&levelVal, "zap-log-level",
-		"Zap Level to configure the verbosity of logging. Can be one of 'debug', 'info', 'error', "+
-			"or any integer value > 0 which corresponds to custom debug levels of increasing verbosity")
-
-	// Set the StrackTrace Level
-	var stackVal stackTraceFlag
-	stackVal.setFunc = func(fromFlag zapcore.LevelEnabler) {
-		o.StacktraceLevel = fromFlag
-	}
-	fs.Var(&stackVal, "zap-stacktrace-level",
-		"Zap Level at and above which stacktraces are captured (one of 'info', 'error').")
+// withOut change the zapcore.WriteSyncer of zap.Logger
+func withOut(log *zap.Logger, w io.Writer) *zap.Logger {
+	log.Core().Sync()
+	log = log.WithOptions(
+		zap.WrapCore(func(core zapcore.Core) zapcore.Core {
+			c := (*ioCore)(unsafe.Pointer(reflect.ValueOf(core).Elem().UnsafeAddr()))
+			return zapcore.NewCore(c.enc, zapcore.AddSync(w), c.LevelEnabler)
+		}),
+	)
+	return log
 }
 
-// UseFlagOptions configures the logger to use the Options set by parsing zap option flags from the CLI.
-//  opts := zap.Options{}
-//  opts.BindFlags(flag.CommandLine)
-//  flag.Parse()
-//  log := zap.New(zap.UseFlagOptions(&opts))
-func UseFlagOptions(in *Options) Opts {
-	return func(o *Options) {
-		*o = *in
-	}
+// Copied from go.uber.org/zap/zapcore/core.go
+type ioCore struct {
+	zapcore.LevelEnabler
+	enc zapcore.Encoder
+	out zapcore.WriteSyncer
 }
